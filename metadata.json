@@ -1,0 +1,5 @@
+{
+  "name": "StudyMate AI",
+  "description": "An AI-powered, local-first web application for creating flashcards from notes, quizzing with adaptive learning (UCB1), and managing review schedules using spaced repetition (SM-2). It features RAG for evidence lookups and offline capabilities.",
+  "requestFramePermissions": []
+}

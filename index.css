@@ -1,0 +1,9 @@
+/* Placeholder stylesheet to satisfy index.html reference.
+   Tailwind is loaded via CDN in index.html, so this can stay minimal. */
+
+/* You can move Tailwind to a local build later and replace the CDN script. */
+
+html, body, #root {
+  height: 100%;
+}
+
