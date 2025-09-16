@@ -126,15 +126,6 @@ export default function App() {
         {renderScreen()}
       </Layout>
       {toast && <Toast key={toast.id} message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
-       <style>{`
-            @keyframes fade-in-down {
-                0% { opacity: 0; transform: translateY(-10px); }
-                100% { opacity: 1; transform: translateY(0); }
-            }
-            .animate-fade-in-down { animation: fade-in-down 0.5s ease-out forwards; }
-            .toggle-checkbox:checked { right: 0; border-color: #4f46e5; }
-            .toggle-checkbox:checked + .toggle-label { background-color: #4f46e5; }
-       `}</style>
     </ThemeProvider>
   );
 }
