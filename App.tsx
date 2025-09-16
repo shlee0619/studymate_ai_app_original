@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Screen } from './types';
 import { db } from './services/db';
@@ -11,6 +10,21 @@ import { ErrorsScreen } from './components/screens/ErrorsScreen';
 import { SettingsScreen } from './components/screens/SettingsScreen';
 import { ConceptsScreen } from './components/screens/ConceptsScreen';
 import { DashboardScreen } from './components/screens/DashboardScreen';
+
+const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000';
+
+const readPersistedApiBaseUrl = () => {
+  if (typeof window === 'undefined') {
+    return DEFAULT_API_BASE_URL;
+  }
+
+  try {
+    return localStorage.getItem('apiBaseUrl') || DEFAULT_API_BASE_URL;
+  } catch (error) {
+    console.warn('Unable to read API base URL from localStorage:', error);
+    return DEFAULT_API_BASE_URL;
+  }
+};
 
 const Toast: React.FC<{ message: string; type: 'success' | 'error'; onDismiss: () => void }> = ({ message, type, onDismiss }) => {
     useEffect(() => {
@@ -35,26 +49,53 @@ const Toast: React.FC<{ message: string; type: 'success' | 'error'; onDismiss: (
 export default function App() {
   const [activeScreen, setActiveScreen] = useState<Screen>('dashboard');
   const [isDbReady, setIsDbReady] = useState(false);
-  const [apiBaseUrl, setApiBaseUrlState] = useState<string>(
-    () => localStorage.getItem('apiBaseUrl') || 'http://127.0.0.1:8000'
-  );
+  const [apiBaseUrl, setApiBaseUrlState] = useState<string>(readPersistedApiBaseUrl);
   const [toast, setToast] = useState<{ id: number; message: string; type: 'success' | 'error' } | null>(null);
 
-  useEffect(() => {
-    db.init()
-      .then(() => setIsDbReady(true))
-      .catch(err => console.error("DB initialization failed:", err));
-  }, []);
-
-  const setApiBaseUrl = (url: string) => {
-    localStorage.setItem('apiBaseUrl', url);
-    setApiBaseUrlState(url);
-  };
-  
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ id: Date.now(), message, type });
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const initialiseDb = async () => {
+      try {
+        await db.init();
+      } catch (error) {
+        console.error('DB initialization failed:', error);
+        if (isMounted) {
+          showToast('Local data features are unavailable. Refresh to retry.', 'error');
+        }
+      } finally {
+        if (isMounted) {
+          setIsDbReady(true);
+        }
+      }
+    };
+
+    initialiseDb();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [showToast]);
+
+  const setApiBaseUrl = useCallback((url: string) => {
+    setApiBaseUrlState(url);
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      localStorage.setItem('apiBaseUrl', url);
+    } catch (error) {
+      console.error('Failed to persist API base URL:', error);
+      showToast('Failed to save API base URL. It may reset after refresh.', 'error');
+    }
+  }, [showToast]);
+  
   const renderScreen = () => {
     switch (activeScreen) {
       case 'dashboard': return <DashboardScreen showToast={showToast} />;
