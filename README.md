@@ -2178,3 +2178,11 @@ If you encounter issues:
 1. Check the browser console for detailed error messages
 2. Verify your environment configuration
 3. Try clearing browser storage and refreshing
+## Quality Checks
+
+- `npm run lint` : ESLint 기반 정적 분석 수행
+- `npm run lint:fix` : 자동 수정 가능한 린트 이슈 정리
+- `npm run format` / `npm run format:check` : Prettier 포맷 일괄 적용 및 검증
+- `npm run test` : Vitest로 단위/컴포넌트 테스트 일괄 실행
+- `npm run test:watch` : 개발 중 빠른 피드백을 위한 워치 모드 테스트
+- `npm run test:coverage` : V8 커버리지 리포트 생성
