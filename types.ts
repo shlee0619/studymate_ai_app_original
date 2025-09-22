@@ -23,6 +23,14 @@ export interface Attempt {
   createdAt: string; // ISO string
 }
 
+export interface StudyGoal {
+  id: string;
+  type: 'daily' | 'weekly';
+  target: number;
+  category: 'study' | 'review';
+  createdAt: string;
+}
+
 export interface ErrorTag {
   id: string;
   name: string;

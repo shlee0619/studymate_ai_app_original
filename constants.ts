@@ -1,15 +1,16 @@
-
+﻿
 import type { ErrorTag } from './types';
 
 export const DB_NAME = 'StudyMateAIDB';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 export const STORE_ITEMS = 'Items';
 export const STORE_ATTEMPTS = 'Attempts';
 export const STORE_ERRORTAGS = 'ErrorTags';
 export const STORE_CONCEPTS = 'Concepts';
 export const STORE_EVIDENCES = 'Evidences';
+export const STORE_GOALS = 'Goals';
 
-export const SAMPLE_TEXT = `Photosynthesis is a process used by plants, algae, and certain bacteria to convert light energy into chemical energy, through a process that converts carbon dioxide and water into glucose (a sugar) and oxygen. The overall chemical equation for photosynthesis is 6CO2 + 6H2O + Light Energy → C6H12O6 + 6O2. This process is crucial for life on Earth as it produces most of the oxygen in the atmosphere. The process occurs in two stages: the light-dependent reactions and the light-independent reactions (Calvin cycle). The light-dependent reactions take place in the thylakoid membranes of chloroplasts and use light energy to make ATP and NADPH. The Calvin cycle occurs in the stroma of the chloroplasts and uses the energy from ATP and NADPH to convert CO2 into glucose.`;
+export const SAMPLE_TEXT = `Photosynthesis is a process used by plants, algae, and certain bacteria to convert light energy into chemical energy, through a process that converts carbon dioxide and water into glucose (a sugar) and oxygen. The overall chemical equation for photosynthesis is 6CO2 + 6H2O + Light Energy ??C6H12O6 + 6O2. This process is crucial for life on Earth as it produces most of the oxygen in the atmosphere. The process occurs in two stages: the light-dependent reactions and the light-independent reactions (Calvin cycle). The light-dependent reactions take place in the thylakoid membranes of chloroplasts and use light energy to make ATP and NADPH. The Calvin cycle occurs in the stroma of the chloroplasts and uses the energy from ATP and NADPH to convert CO2 into glucose.`;
 
 export const INITIAL_ERROR_TAGS: ErrorTag[] = [
   { id: 'misread', name: 'Misread the question' },

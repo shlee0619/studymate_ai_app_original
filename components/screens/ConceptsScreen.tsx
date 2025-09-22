@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../../services/db';
 import type { Concept } from '../../types';
+import { useToast } from '../../contexts/ToastContext';
 
 declare const d3: any;
 
-interface ConceptsScreenProps {
-  showToast: (message: string, type?: 'success' | 'error') => void;
-}
-
-export const ConceptsScreen: React.FC<ConceptsScreenProps> = ({ showToast }) => {
+export const ConceptsScreen: React.FC = () => {
+  const { showToast } = useToast();
   const [concepts, setConcepts] = useState<Concept[]>([]);
   const [newConceptTitle, setNewConceptTitle] = useState('');
-  const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null);
   const [selectedPrereqs, setSelectedPrereqs] = useState<string[]>([]);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -33,9 +30,9 @@ export const ConceptsScreen: React.FC<ConceptsScreenProps> = ({ showToast }) => 
     if (concepts.length > 0 && svgRef.current && typeof d3 !== 'undefined') {
       drawKnowledgeGraph();
     }
-  }, [concepts]);
+  }, [concepts, drawKnowledgeGraph]);
 
-  const drawKnowledgeGraph = () => {
+  const drawKnowledgeGraph = useCallback(() => {
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
@@ -141,7 +138,7 @@ export const ConceptsScreen: React.FC<ConceptsScreenProps> = ({ showToast }) => 
       event.subject.fx = null;
       event.subject.fy = null;
     }
-  };
+  }, [concepts]);
 
   const handleAddConcept = async () => {
     if (!newConceptTitle.trim()) {

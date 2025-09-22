@@ -4,17 +4,16 @@ import { SAMPLE_TEXT } from '../../constants';
 import { generateItems, ingestChunks } from '../../services/apiService';
 import { db } from '../../services/db';
 import type { Item } from '../../types';
-
-interface LibraryScreenProps {
-  apiBaseUrl: string;
-  showToast: (message: string, type?: 'success' | 'error') => void;
-}
+import { useApiUrl } from '../../contexts/ApiUrlContext';
+import { useToast } from '../../contexts/ToastContext';
 
 const LoadingSpinner: React.FC = () => (
     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
 );
 
-export const LibraryScreen: React.FC<LibraryScreenProps> = ({ apiBaseUrl, showToast }) => {
+export const LibraryScreen: React.FC = () => {
+  const { apiBaseUrl } = useApiUrl();
+  const { showToast } = useToast();
   const [text, setText] = useState('');
   const [isLoading, setIsLoading] = useState<{ autocard: boolean; ingest: boolean }>({ autocard: false, ingest: false });
   const fileInputRef = React.useRef<HTMLInputElement>(null);

@@ -1,12 +1,10 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import DOMPurify from 'dompurify';
 import { useQuiz } from '../../hooks/useQuiz';
 import type { ErrorTag } from '../../types';
 import { MESSAGES } from '../../constants';
-
-interface QuizScreenProps {
-  apiBaseUrl: string;
-}
+import { useApiUrl } from '../../contexts/ApiUrlContext';
 
 const LoadingSpinner: React.FC = () => (
     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-400"></div>
@@ -14,18 +12,17 @@ const LoadingSpinner: React.FC = () => (
 
 // Safe HTML renderer for evidence text
 const SafeEvidenceRenderer: React.FC<{ text: string }> = ({ text }) => {
-    // Simple and safe bold text highlighting without dangerouslySetInnerHTML
-    const renderSafeEvidence = (evidence: string) => {
-        const parts = evidence.split(/\*\*(.*?)\*\*/g);
-        return parts.map((part, index) => {
-            if (index % 2 === 1) {
-                return <strong key={index} className="text-emerald-600 dark:text-emerald-400">{part}</strong>;
-            }
-            return part;
-        });
-    };
+    const sanitizedHtml = useMemo(() => {
+        const highlighted = text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-emerald-600 dark:text-emerald-400">$1</strong>');
+        return DOMPurify.sanitize(highlighted, { ALLOWED_TAGS: ['strong', 'em', 'p', 'span', 'br'], ALLOWED_ATTR: ['class'] });
+    }, [text]);
 
-    return <p className="text-gray-600 dark:text-gray-400 italic text-sm">{renderSafeEvidence(text)}</p>;
+    return (
+        <p
+            className="text-gray-600 dark:text-gray-400 italic text-sm"
+            dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+        />
+    );
 };
 
 const ErrorTagSelector: React.FC<{ tags: ErrorTag[], selectedTags: string[], onToggleTag: (tagId: string) => void }> = ({ tags, selectedTags, onToggleTag }) => (
@@ -50,7 +47,8 @@ const ErrorTagSelector: React.FC<{ tags: ErrorTag[], selectedTags: string[], onT
 );
 
 
-export const QuizScreen: React.FC<QuizScreenProps> = ({ apiBaseUrl }) => {
+export const QuizScreen: React.FC = () => {
+    const { apiBaseUrl } = useApiUrl();
     const { currentItem, isLoading, feedback, allTags, getNextItem, submitAnswer } = useQuiz({ apiBaseUrl });
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [confidence, setConfidence] = useState(0.5);
@@ -83,7 +81,7 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({ apiBaseUrl }) => {
         if (feedback && !feedback.correct && selectedErrorTags.length === 0) {
             // Can show a toast here to remind user to select tags
         }
-        getNextItem();
+        getNextItem({ refresh: true });
     };
 
     if (isLoading) {

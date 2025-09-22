@@ -1,20 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../services/db';
-import type { Item, Attempt } from '../../types';
+import type { StudyGoal } from '../../types';
+import { useToast } from '../../contexts/ToastContext';
 
-interface StudyGoal {
-  id: string;
-  type: 'daily' | 'weekly';
-  target: number;
-  category: 'study' | 'review';
-  createdAt: string;
-}
-
-interface DashboardScreenProps {
-  showToast: (message: string, type?: 'success' | 'error') => void;
-}
-
-export const DashboardScreen: React.FC<DashboardScreenProps> = ({ showToast }) => {
+export const DashboardScreen: React.FC = () => {
+  const { showToast } = useToast();
   const [stats, setStats] = useState({
     totalItems: 0,
     totalAttempts: 0,
