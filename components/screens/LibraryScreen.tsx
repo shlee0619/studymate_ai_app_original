@@ -6,6 +6,7 @@ import { db } from '../../services/db';
 import type { Item } from '../../types';
 import { useApiUrl } from '../../contexts/ApiUrlContext';
 import { useToast } from '../../contexts/ToastContext';
+import jsPDF from 'jspdf';
 
 const LoadingSpinner: React.FC = () => (
     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
@@ -100,6 +101,47 @@ export const LibraryScreen: React.FC = () => {
     }
   }, [text, apiBaseUrl, showToast]);
 
+
+  const handleSavePdf = useCallback(() => {
+    if (!text.trim()) {
+      showToast('Please provide text to export.', 'error');
+      return;
+    }
+
+    try {
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 40;
+      const maxLineWidth = pageWidth - margin * 2;
+      const lineHeight = 18;
+      const lines = doc.splitTextToSize(text, maxLineWidth);
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(12);
+
+      let cursorY = margin;
+      lines.forEach((line: string) => {
+        if (cursorY > pageHeight - margin) {
+          doc.addPage();
+          cursorY = margin;
+        }
+        doc.text(line, margin, cursorY);
+        cursorY += lineHeight;
+      });
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      doc.save(`studymate-notes-${timestamp}.pdf`);
+      showToast('Saved as PDF.', 'success');
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error occurred.';
+      showToast(`PDF export failed: ${message}`, 'error');
+    }
+  }, [text, showToast]);
+
+
+
   return (
     <div className="flex flex-col h-full space-y-4">
       <div className="flex justify-between items-center">
@@ -127,9 +169,12 @@ export const LibraryScreen: React.FC = () => {
         placeholder="여기에 학습할 내용을 붙여넣으세요..."
         className="w-full flex-grow p-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md shadow-inner focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none text-gray-900 dark:text-white"
       />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <button onClick={handleLoadSample} className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-500 transition-colors">
           샘플 로드
+        </button>
+        <button onClick={handleSavePdf} className="px-4 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-500 transition-colors">
+          Save as PDF
         </button>
         <button onClick={handleAutocard} disabled={isLoading.autocard} className="flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors disabled:bg-indigo-800 disabled:cursor-not-allowed">
           {isLoading.autocard ? <LoadingSpinner /> : '자동 카드 생성 (Autocard)'}
