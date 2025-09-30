@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { db } from '../services/db';
 import { useToast } from '../contexts/ToastContext';
 
@@ -13,9 +13,10 @@ export const useDb = (): UseDbResult => {
   const { showToast } = useToast();
   const [isDbReady, setIsDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
-  const isMountedRef = useRef(true);
+  const isMountedRef = useRef(false);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
@@ -59,3 +60,4 @@ export const useDb = (): UseDbResult => {
     acknowledgeDbError,
   };
 };
+
