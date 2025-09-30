@@ -98,7 +98,7 @@ class StudyMateDB {
       return;
     }
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const transaction = store.transaction;
       items.forEach((item) => store.put(item));
       transaction.oncomplete = () => resolve();
@@ -116,7 +116,7 @@ class StudyMateDB {
     }
 
     const request = store.getAll();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => {
         console.error('Failed to get items:', request.error);
@@ -145,7 +145,7 @@ class StudyMateDB {
     }
 
     const request = store.get(id);
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       request.onsuccess = () => {
         const item = request.result;
         if (item) {
@@ -173,7 +173,7 @@ class StudyMateDB {
     }
 
     const request = store.add(attempt);
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
@@ -188,7 +188,7 @@ class StudyMateDB {
     }
 
     const request = store.getAll();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -224,7 +224,7 @@ class StudyMateDB {
     }
 
     const request = store.getAll();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -239,7 +239,7 @@ class StudyMateDB {
     }
 
     const request = store.add(concept);
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
@@ -254,7 +254,7 @@ class StudyMateDB {
     }
 
     const request = store.put(concept);
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
@@ -269,7 +269,7 @@ class StudyMateDB {
     }
 
     const request = store.delete(conceptId);
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
@@ -289,7 +289,7 @@ class StudyMateDB {
     }
 
     const request = store.getAll();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       request.onsuccess = () => {
         const attempts: Attempt[] = request.result;
         const histogram: ErrorTagHistogram = {};
@@ -320,7 +320,7 @@ class StudyMateDB {
     }
 
     const request = store.getAll();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -336,7 +336,7 @@ class StudyMateDB {
     }
 
     const request = store.put(goal);
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
@@ -352,7 +352,7 @@ class StudyMateDB {
     }
 
     const request = store.delete(goalId);
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
@@ -453,7 +453,7 @@ class StudyMateDB {
     ];
     const tx = database.transaction(storeNames, 'readwrite');
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       let cleared = 0;
       storeNames.forEach((name) => {
         const clearRequest = tx.objectStore(name).clear();

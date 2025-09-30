@@ -17,6 +17,12 @@ export const ConceptsScreen: React.FC = () => {
       return;
     }
 
+    // Check if d3 is available
+    if (typeof d3 === 'undefined') {
+      console.warn('D3.js is not loaded. Knowledge graph cannot be rendered.');
+      return;
+    }
+
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
@@ -194,11 +200,17 @@ export const ConceptsScreen: React.FC = () => {
       {/* Knowledge Graph */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-300 dark:border-gray-700">
         <h3 className="text-md font-medium text-gray-600 dark:text-gray-400 mb-2">지식 그래프</h3>
-        <svg
-          ref={svgRef}
-          className="w-full h-96 border border-gray-200 dark:border-gray-600 rounded"
-          style={{ background: 'linear-gradient(to bottom, #f9fafb, #f3f4f6)' }}
-        />
+        {typeof d3 === 'undefined' ? (
+          <div className="w-full h-96 border border-gray-200 dark:border-gray-600 rounded flex items-center justify-center bg-gray-100 dark:bg-gray-700">
+            <p className="text-gray-600 dark:text-gray-400 text-sm">D3.js 라이브러리가 로드되지 않았습니다.</p>
+          </div>
+        ) : (
+          <svg
+            ref={svgRef}
+            className="w-full h-96 border border-gray-200 dark:border-gray-600 rounded"
+            style={{ background: 'linear-gradient(to bottom, #f9fafb, #f3f4f6)' }}
+          />
+        )}
       </div>
 
       {/* Add New Concept */}

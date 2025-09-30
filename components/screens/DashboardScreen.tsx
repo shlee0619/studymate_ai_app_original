@@ -51,11 +51,9 @@ export const DashboardScreen: React.FC = () => {
         dueForReview: dueItems.length
       });
 
-      // Load goals from localStorage
-      const savedGoals = localStorage.getItem('studyGoals');
-      if (savedGoals) {
-        setGoals(JSON.parse(savedGoals));
-      }
+      // Load goals from IndexedDB
+      const savedGoals = await db.getAllGoals();
+      setGoals(savedGoals);
     } catch (error) {
       console.error('Failed to load stats:', error);
       showToast('통계 로드에 실패했습니다.', 'error');
@@ -66,7 +64,7 @@ export const DashboardScreen: React.FC = () => {
     loadStats();
   }, [loadStats]);
 
-  const handleAddGoal = () => {
+  const handleAddGoal = async () => {
     if (!newGoal.target || newGoal.target <= 0) {
       showToast('유효한 목표 수치를 입력해주세요.', 'error');
       return;
@@ -80,19 +78,29 @@ export const DashboardScreen: React.FC = () => {
       createdAt: new Date().toISOString()
     };
 
-    const updatedGoals = [...goals, goal];
-    setGoals(updatedGoals);
-    localStorage.setItem('studyGoals', JSON.stringify(updatedGoals));
-    
-    setNewGoal({ type: 'daily', category: 'study', target: 20 });
-    showToast('목표가 추가되었습니다.', 'success');
+    try {
+      await db.saveGoal(goal);
+      const updatedGoals = [...goals, goal];
+      setGoals(updatedGoals);
+
+      setNewGoal({ type: 'daily', category: 'study', target: 20 });
+      showToast('목표가 추가되었습니다.', 'success');
+    } catch (error) {
+      console.error('Failed to add goal:', error);
+      showToast('목표 추가에 실패했습니다.', 'error');
+    }
   };
 
-  const handleDeleteGoal = (goalId: string) => {
-    const updatedGoals = goals.filter(g => g.id !== goalId);
-    setGoals(updatedGoals);
-    localStorage.setItem('studyGoals', JSON.stringify(updatedGoals));
-    showToast('목표가 삭제되었습니다.', 'success');
+  const handleDeleteGoal = async (goalId: string) => {
+    try {
+      await db.deleteGoal(goalId);
+      const updatedGoals = goals.filter(g => g.id !== goalId);
+      setGoals(updatedGoals);
+      showToast('목표가 삭제되었습니다.', 'success');
+    } catch (error) {
+      console.error('Failed to delete goal:', error);
+      showToast('목표 삭제에 실패했습니다.', 'error');
+    }
   };
 
   const getGoalProgress = (goal: StudyGoal) => {

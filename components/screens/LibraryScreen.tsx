@@ -104,7 +104,7 @@ export const LibraryScreen: React.FC = () => {
 
   const handleSavePdf = useCallback(() => {
     if (!text.trim()) {
-      showToast('Please provide text to export.', 'error');
+      showToast('내보낼 텍스트를 입력해주세요.', 'error');
       return;
     }
 
@@ -132,11 +132,11 @@ export const LibraryScreen: React.FC = () => {
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       doc.save(`studymate-notes-${timestamp}.pdf`);
-      showToast('Saved as PDF.', 'success');
+      showToast('PDF로 저장되었습니다.', 'success');
     } catch (error) {
       console.error('PDF export failed:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error occurred.';
-      showToast(`PDF export failed: ${message}`, 'error');
+      const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
+      showToast(`PDF 내보내기 실패: ${message}`, 'error');
     }
   }, [text, showToast]);
 
@@ -174,7 +174,7 @@ export const LibraryScreen: React.FC = () => {
           샘플 로드
         </button>
         <button onClick={handleSavePdf} className="px-4 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-500 transition-colors">
-          Save as PDF
+          PDF 저장
         </button>
         <button onClick={handleAutocard} disabled={isLoading.autocard} className="flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors disabled:bg-indigo-800 disabled:cursor-not-allowed">
           {isLoading.autocard ? <LoadingSpinner /> : '자동 카드 생성 (Autocard)'}
