@@ -1,4 +1,4 @@
-import {
+﻿import {
   DB_NAME,
   DB_VERSION,
   STORE_ATTEMPTS,
@@ -7,9 +7,13 @@ import {
   STORE_EVIDENCES,
   STORE_ITEMS,
   STORE_GOALS,
+  STORE_BADGES,
+  STORE_STREAKS,
+  STORE_CHALLENGES,
   INITIAL_ERROR_TAGS,
+  DEFAULT_STREAK,
 } from '../constants';
-import type { Item, Attempt, ErrorTag, ErrorTagHistogram, Concept, StudyGoal } from '../types';
+import type { Item, Attempt, ErrorTag, ErrorTagHistogram, Concept, StudyGoal, UnlockedBadge, StudyStreak, ChallengeProgress, AiFeedback } from '../types';
 class StudyMateDB {
   private db: IDBDatabase | null = null;
   private isSupported: boolean = true;
@@ -63,6 +67,16 @@ class StudyMateDB {
           }
           if (!db.objectStoreNames.contains(STORE_GOALS)) {
             db.createObjectStore(STORE_GOALS, { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains(STORE_BADGES)) {
+            db.createObjectStore(STORE_BADGES, { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains(STORE_STREAKS)) {
+            const streakStore = db.createObjectStore(STORE_STREAKS, { keyPath: 'id' });
+            streakStore.put(DEFAULT_STREAK);
+          }
+          if (!db.objectStoreNames.contains(STORE_CHALLENGES)) {
+            db.createObjectStore(STORE_CHALLENGES, { keyPath: 'id' });
           }
         };
       } catch (error) {
@@ -178,7 +192,37 @@ class StudyMateDB {
       request.onerror = () => reject(request.error);
     });
   }
-  public async getAllAttempts(): Promise<Attempt[]> {
+
+  public async updateAttemptFeedback(
+    attemptId: string,
+    aiFeedback?: AiFeedback,
+    remediationConcepts?: string[],
+  ): Promise<void> {
+    let store: IDBObjectStore;
+    try {
+      store = this.getStore(STORE_ATTEMPTS, 'readwrite');
+    } catch (error) {
+      console.warn('Skipping attempt feedback update; IndexedDB is unavailable.', error);
+      return;
+    }
+
+    const request = store.get(attemptId);
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        const existing = request.result as Attempt | undefined;
+        if (!existing) {
+          resolve();
+          return;
+        }
+        existing.aiFeedback = aiFeedback;
+        existing.remediationConcepts = remediationConcepts;
+        const updateRequest = store.put(existing);
+        updateRequest.onsuccess = () => resolve();
+        updateRequest.onerror = () => reject(updateRequest.error);
+      };
+      request.onerror = () => reject(request.error ?? new Error('Attempt lookup failed.'));
+    });
+  }  public async getAllAttempts(): Promise<Attempt[]> {
     let store: IDBObjectStore;
     try {
       store = this.getStore(STORE_ATTEMPTS, 'readonly');
@@ -358,6 +402,120 @@ class StudyMateDB {
     });
   }
 
+  public async getUnlockedBadges(): Promise<UnlockedBadge[]> {
+    let store: IDBObjectStore;
+    try {
+      store = this.getStore(STORE_BADGES, 'readonly');
+    } catch (error) {
+      console.warn('Database not available, returning empty badge list.', error);
+      return [];
+    }
+
+    const request = store.getAll();
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve((request.result as UnlockedBadge[]) ?? []);
+      request.onerror = () => resolve([]);
+    });
+  }
+
+  public async upsertUnlockedBadge(badge: UnlockedBadge): Promise<void> {
+    let store: IDBObjectStore;
+    try {
+      store = this.getStore(STORE_BADGES, 'readwrite');
+    } catch (error) {
+      console.warn('Skipping badge update; IndexedDB is unavailable.', error);
+      return;
+    }
+
+    const request = store.put(badge);
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  public async getStudyStreak(): Promise<StudyStreak> {
+    let store: IDBObjectStore;
+    try {
+      store = this.getStore(STORE_STREAKS, 'readonly');
+    } catch (error) {
+      console.warn('Database not available, returning default streak.', error);
+      return { ...DEFAULT_STREAK };
+    }
+
+    const request = store.get(DEFAULT_STREAK.id);
+    return new Promise((resolve) => {
+      request.onsuccess = () => {
+        const streak = request.result as StudyStreak | undefined;
+        resolve(streak ?? { ...DEFAULT_STREAK });
+      };
+      request.onerror = () => resolve({ ...DEFAULT_STREAK });
+    });
+  }
+
+  public async saveStudyStreak(streak: StudyStreak): Promise<void> {
+    let store: IDBObjectStore;
+    try {
+      store = this.getStore(STORE_STREAKS, 'readwrite');
+    } catch (error) {
+      console.warn('Skipping streak save; IndexedDB is unavailable.', error);
+      return;
+    }
+
+    const request = store.put(streak);
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  public async getAllChallengeProgress(): Promise<ChallengeProgress[]> {
+    let store: IDBObjectStore;
+    try {
+      store = this.getStore(STORE_CHALLENGES, 'readonly');
+    } catch (error) {
+      console.warn('Database not available, returning empty challenge progress.', error);
+      return [];
+    }
+
+    const request = store.getAll();
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve((request.result as ChallengeProgress[]) ?? []);
+      request.onerror = () => resolve([]);
+    });
+  }
+
+  public async saveChallengeProgress(progress: ChallengeProgress): Promise<void> {
+    let store: IDBObjectStore;
+    try {
+      store = this.getStore(STORE_CHALLENGES, 'readwrite');
+    } catch (error) {
+      console.warn('Skipping challenge save; IndexedDB is unavailable.', error);
+      return;
+    }
+
+    const request = store.put(progress);
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  public async deleteChallengeProgress(progressId: string): Promise<void> {
+    let store: IDBObjectStore;
+    try {
+      store = this.getStore(STORE_CHALLENGES, 'readwrite');
+    } catch (error) {
+      console.warn('Skipping challenge delete; IndexedDB is unavailable.', error);
+      return;
+    }
+
+    const request = store.delete(progressId);
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
   public async exportData(): Promise<any> {
     const items = await this.getAllItems();
 
@@ -383,6 +541,9 @@ class StudyMateDB {
         attempts,
         errorTags,
         goals,
+        badges,
+        streak,
+        challenges,
       },
     };
   }
@@ -399,11 +560,14 @@ class StudyMateDB {
       'readwrite',
     );
 
-    const { items = [], attempts = [], errorTags = [], goals = [] } = data.data as {
+    const { items = [], attempts = [], errorTags = [], goals = [], badges = [], streak = DEFAULT_STREAK, challenges = [] } = data.data as {
       items?: Item[];
       attempts?: Attempt[];
       errorTags?: ErrorTag[];
       goals?: StudyGoal[];
+      badges?: UnlockedBadge[];
+      streak?: StudyStreak;
+      challenges?: ChallengeProgress[];
     };
 
     try {
@@ -423,6 +587,15 @@ class StudyMateDB {
 
       const goalsStore = transaction.objectStore(STORE_GOALS);
       goals.forEach((goal) => goalsStore.put(goal));
+
+      const badgesStore = transaction.objectStore(STORE_BADGES);
+      badges.forEach((badge) => badgesStore.put(badge));
+
+      const streakStore = transaction.objectStore(STORE_STREAKS);
+      streakStore.put(streak ?? { ...DEFAULT_STREAK });
+
+      const challengesStore = transaction.objectStore(STORE_CHALLENGES);
+      challenges.forEach((challenge) => challengesStore.put(challenge));
     } catch (error) {
       transaction.abort();
       throw error instanceof Error ? error : new Error(String(error));
@@ -450,6 +623,9 @@ class StudyMateDB {
       STORE_EVIDENCES,
       STORE_ERRORTAGS,
       STORE_GOALS,
+      STORE_BADGES,
+      STORE_STREAKS,
+      STORE_CHALLENGES,
     ];
     const tx = database.transaction(storeNames, 'readwrite');
 
@@ -462,6 +638,8 @@ class StudyMateDB {
           if (cleared === storeNames.length) {
             const errorTagsStore = tx.objectStore(STORE_ERRORTAGS);
             INITIAL_ERROR_TAGS.forEach((tag) => errorTagsStore.put(tag));
+            const streakStore = tx.objectStore(STORE_STREAKS);
+            streakStore.put({ ...DEFAULT_STREAK });
           }
         };
         clearRequest.onerror = () => {
@@ -475,3 +653,16 @@ class StudyMateDB {
   }
 }
 export const db = new StudyMateDB();
+
+
+
+
+
+
+
+
+
+
+
+
+

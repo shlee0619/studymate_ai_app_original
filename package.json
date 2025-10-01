@@ -19,7 +19,8 @@
     "dompurify": "^3.0.9",
     "jspdf": "^2.5.1",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.5.0",

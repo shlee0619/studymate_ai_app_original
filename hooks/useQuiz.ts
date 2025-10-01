@@ -1,8 +1,10 @@
 ﻿import { useState, useCallback, useEffect } from 'react';
-import type { Item, Attempt, ErrorTag } from '../types';
+import type { Item, Attempt, ErrorTag, AiFeedback, UnlockedBadge, StudyStreak, ChallengeProgress } from '../types';
 import { db } from '../services/db';
 import { searchEvidence } from '../services/apiService';
 import { MESSAGES } from '../constants';
+import { recordStudyActivity } from '../services/gamificationService';
+import { fetchAiFeedback } from '../services/aiTutorService';
 import { useUcb1 } from './useUcb1';
 import { useSm2 } from './useSm2';
 
@@ -22,11 +24,21 @@ const getDifficultyArm = (difficulty: number): number => {
   return 2; // Hard
 };
 
+interface QuizFeedback {
+  correct: boolean;
+  evidence?: string;
+  aiFeedback?: AiFeedback;
+  earnedBadges?: UnlockedBadge[];
+  streak?: StudyStreak;
+  challengeUpdates?: ChallengeProgress[];
+}
+
+
 export const useQuiz = ({ apiBaseUrl }: UseQuizParams) => {
   const [currentItem, setCurrentItem] = useState<Item | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [allTags, setAllTags] = useState<ErrorTag[]>([]);
-  const [feedback, setFeedback] = useState<{ correct: boolean; evidence?: string } | null>(null);
+  const [feedback, setFeedback] = useState<QuizFeedback | null>(null);
   const [quizItems, setQuizItems] = useState<Item[]>([]);
 
   const { selectArm, update } = useUcb1(3);
@@ -90,7 +102,7 @@ export const useQuiz = ({ apiBaseUrl }: UseQuizParams) => {
       const correct = item.answerIndex === answerIndex;
 
       const attempt: Attempt = {
-        id: `attempt_${Date.now()}`,
+        id: 'attempt_' + Date.now(),
         itemId: item.id,
         correct,
         latencyMs,
@@ -124,13 +136,54 @@ export const useQuiz = ({ apiBaseUrl }: UseQuizParams) => {
         console.error('Failed to update item scheduling:', error);
       }
 
-      try {
-        const evidenceRes = await searchEvidence(apiBaseUrl, item.stem, 1);
-        setFeedback({ correct, evidence: evidenceRes.hits[0]?.snippet });
-      } catch (error) {
+      const evidencePromise = searchEvidence(apiBaseUrl, item.stem, 1).catch((error) => {
         console.error('Failed to fetch evidence:', error);
-        setFeedback({ correct, evidence: MESSAGES.EVIDENCE_LOAD_FAILED });
+        return null;
+      });
+
+      const gamificationPromise = recordStudyActivity(attempt).catch((error) => {
+        console.error('Gamification update failed:', error);
+        return null;
+      });
+
+      let aiFeedback: AiFeedback | undefined;
+      if (!correct) {
+        try {
+          aiFeedback = await fetchAiFeedback({
+            baseUrl: apiBaseUrl,
+            item,
+            attempt,
+            selectedOption: answerIndex,
+            errorTagIds,
+          });
+          attempt.aiFeedback = aiFeedback;
+          attempt.remediationConcepts = aiFeedback.focusConcepts;
+        } catch (error) {
+          console.error('AI tutor feedback failed:', error);
+        }
+
+        if (aiFeedback) {
+          try {
+            await db.updateAttemptFeedback(attempt.id, aiFeedback, aiFeedback.focusConcepts);
+          } catch (error) {
+            console.warn('Persisting AI feedback failed:', error);
+          }
+        }
       }
+
+      const [evidenceRes, gamificationRes] = await Promise.all([evidencePromise, gamificationPromise]);
+
+      const evidenceSnippet =
+        evidenceRes?.hits?.[0]?.snippet ?? (!correct ? MESSAGES.EVIDENCE_LOAD_FAILED : undefined);
+
+      setFeedback({
+        correct,
+        evidence: evidenceSnippet,
+        aiFeedback,
+        earnedBadges: gamificationRes?.earnedBadges,
+        streak: gamificationRes?.streak,
+        challengeUpdates: gamificationRes?.updatedChallenges,
+      });
     },
     [apiBaseUrl, calculateSm2, update],
   );
@@ -142,3 +195,9 @@ export const useQuiz = ({ apiBaseUrl }: UseQuizParams) => {
 
   return { currentItem, isLoading, feedback, allTags, getNextItem, submitAnswer };
 };
+
+
+
+
+
+

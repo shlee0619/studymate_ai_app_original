@@ -1,5 +1,4 @@
-
-export interface Item {
+﻿export interface Item {
   id: string;
   stem: string;
   options: string[];
@@ -13,6 +12,14 @@ export interface Item {
   nextReview?: string; // ISO string
 }
 
+export interface AiFeedback {
+  explanation: string;
+  focusConcepts: string[];
+  suggestedResources: string[];
+  followUpPrompt?: string;
+  createdAt: string; // ISO string
+}
+
 export interface Attempt {
   id: string;
   itemId: string;
@@ -21,13 +28,15 @@ export interface Attempt {
   confidence: number; // 0.0 to 1.0
   errorTagIds: string[];
   createdAt: string; // ISO string
+  aiFeedback?: AiFeedback;
+  remediationConcepts?: string[];
 }
 
 export interface StudyGoal {
   id: string;
-  type: 'daily' | 'weekly';
+  type: "daily" | "weekly";
   target: number;
-  category: 'study' | 'review';
+  category: "study" | "review";
   createdAt: string;
 }
 
@@ -66,4 +75,76 @@ export interface SearchHit {
   offsets?: [number, number];
 }
 
-export type Screen = 'dashboard' | 'library' | 'quiz' | 'review' | 'errors' | 'concepts' | 'settings';
+export interface BadgeDefinition {
+  id: string;
+  title: string;
+  description: string;
+  category: "streak" | "mastery" | "momentum" | "challenge";
+  icon: string;
+  metric: "streakDays" | "weeklyStudySessions" | "accuracy" | "challengeCompletions";
+  threshold: number;
+}
+
+export interface UnlockedBadge {
+  id: string;
+  badgeId: string;
+  unlockedAt: string;
+  progressSnapshot?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface StudyStreak {
+  id: string;
+  current: number;
+  longest: number;
+  lastStudyDate: string | null;
+}
+
+export interface ChallengeTemplate {
+  id: string;
+  title: string;
+  description: string;
+  period: "daily" | "weekly";
+  metric: "studySessions" | "cardsReviewed" | "accuracy" | "streak";
+  target: number;
+}
+
+export interface ChallengeProgress {
+  id: string;
+  challengeId: string;
+  dateKey: string; // e.g. 2025-09-30
+  period: "daily" | "weekly";
+  progress: number;
+  target: number;
+  completedAt?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface DailyStudyMetric {
+  date: string;
+  studied: number;
+  correct: number;
+  incorrect: number;
+  accuracy: number;
+}
+
+export interface ScheduleRecommendation {
+  id: string;
+  title: string;
+  description: string;
+  suggestedAt: string;
+  dueAt: string;
+  urgency: "overdue" | "today" | "upcoming";
+  priority: "high" | "medium" | "low";
+  itemCount: number;
+  metadata?: Record<string, unknown>;
+}
+
+export type Screen =
+  | "dashboard"
+  | "library"
+  | "quiz"
+  | "review"
+  | "errors"
+  | "concepts"
+  | "settings";

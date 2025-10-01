@@ -1,236 +1,345 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { db } from '../../services/db';
-import type { StudyGoal } from '../../types';
-import { useToast } from '../../contexts/ToastContext';
+﻿import React, { useEffect, useMemo } from "react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { useToast } from "../../contexts/ToastContext";
+import { useStudySnapshot } from "../../hooks/useStudySnapshot";
+import type { ChallengeTemplate } from "../../types";
+
+const LoadingState: React.FC = () => (
+  <div className="flex items-center justify-center h-full py-24">
+    <div className="flex flex-col items-center gap-3">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500" />
+      <p className="text-sm text-gray-500 dark:text-gray-400">Loading study insights...</p>
+    </div>
+  </div>
+);
+
+const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
+  <div className="flex flex-col items-center justify-center gap-4 py-12">
+    <p className="text-sm text-red-500">{message}</p>
+    <button
+      onClick={onRetry}
+      className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-500"
+    >
+      Retry loading data
+    </button>
+  </div>
+);
+
+const formatShortDate = (value: string): string => {
+  const date = new Date(value);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+};
+
+const getCurrentWeekKey = (): string => {
+  const now = new Date();
+  const day = now.getDay() || 7;
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(now.getDate() - day + 1);
+  return monday.toISOString().slice(0, 10);
+};
+
+const createChallengeTemplateMap = (templates: ChallengeTemplate[]): Map<string, ChallengeTemplate> => {
+  const map = new Map<string, ChallengeTemplate>();
+  templates.forEach((template) => {
+    map.set(template.id, template);
+  });
+  return map;
+};
 
 export const DashboardScreen: React.FC = () => {
   const { showToast } = useToast();
-  const [stats, setStats] = useState({
-    totalItems: 0,
-    totalAttempts: 0,
-    correctRate: 0,
-    todayStudied: 0,
-    weekStudied: 0,
-    dueForReview: 0
-  });
-  const [goals, setGoals] = useState<StudyGoal[]>([]);
-  const [newGoal, setNewGoal] = useState<Partial<StudyGoal>>({
-    type: 'daily',
-    category: 'study',
-    target: 20
-  });
-
-  const loadStats = useCallback(async () => {
-    try {
-      const items = await db.getAllItems();
-      const attempts = await db.getAllAttempts();
-      const dueItems = await db.getDueItems();
-
-      const today = new Date().toDateString();
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-
-      const todayAttempts = attempts.filter(a => 
-        new Date(a.createdAt).toDateString() === today
-      );
-
-      const weekAttempts = attempts.filter(a => 
-        new Date(a.createdAt) >= weekAgo
-      );
-
-      const correctAttempts = attempts.filter(a => a.correct);
-      const correctRate = attempts.length > 0 
-        ? (correctAttempts.length / attempts.length) * 100 
-        : 0;
-
-      setStats({
-        totalItems: items.length,
-        totalAttempts: attempts.length,
-        correctRate: Math.round(correctRate),
-        todayStudied: todayAttempts.length,
-        weekStudied: weekAttempts.length,
-        dueForReview: dueItems.length
-      });
-
-      // Load goals from IndexedDB
-      const savedGoals = await db.getAllGoals();
-      setGoals(savedGoals);
-    } catch (error) {
-      console.error('Failed to load stats:', error);
-      showToast('통계 로드에 실패했습니다.', 'error');
-    }
-  }, [showToast]);
+  const { snapshot, loading, error, refresh } = useStudySnapshot();
 
   useEffect(() => {
-    loadStats();
-  }, [loadStats]);
+    if (error) {
+      showToast(error, "error");
+    }
+  }, [error, showToast]);
 
-  const handleAddGoal = async () => {
-    if (!newGoal.target || newGoal.target <= 0) {
-      showToast('유효한 목표 수치를 입력해주세요.', 'error');
-      return;
+  const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const currentWeekKey = useMemo(getCurrentWeekKey, []);
+
+  const badgeCards = useMemo(() => {
+    if (!snapshot) {
+      return [];
     }
 
-    const goal: StudyGoal = {
-      id: `goal_${Date.now()}`,
-      type: newGoal.type || 'daily',
-      category: newGoal.category || 'study',
-      target: newGoal.target,
-      createdAt: new Date().toISOString()
-    };
+    const unlockedMap = new Map(snapshot.badges.unlocked.map((badge) => [badge.badgeId, badge]));
+    return snapshot.badges.definitions.map((definition) => {
+      const unlocked = unlockedMap.get(definition.id);
+      return {
+        definition,
+        unlocked,
+        isUnlocked: Boolean(unlocked),
+        progressSnapshot: unlocked?.progressSnapshot,
+      };
+    });
+  }, [snapshot]);
 
-    try {
-      await db.saveGoal(goal);
-      const updatedGoals = [...goals, goal];
-      setGoals(updatedGoals);
-
-      setNewGoal({ type: 'daily', category: 'study', target: 20 });
-      showToast('목표가 추가되었습니다.', 'success');
-    } catch (error) {
-      console.error('Failed to add goal:', error);
-      showToast('목표 추가에 실패했습니다.', 'error');
+  const challengeDefinitions = useMemo(() => {
+    if (!snapshot) {
+      return new Map<string, ChallengeTemplate>();
     }
-  };
+    return createChallengeTemplateMap(snapshot.challengeTemplates);
+  }, [snapshot]);
 
-  const handleDeleteGoal = async (goalId: string) => {
-    try {
-      await db.deleteGoal(goalId);
-      const updatedGoals = goals.filter(g => g.id !== goalId);
-      setGoals(updatedGoals);
-      showToast('목표가 삭제되었습니다.', 'success');
-    } catch (error) {
-      console.error('Failed to delete goal:', error);
-      showToast('목표 삭제에 실패했습니다.', 'error');
+  const activeChallenges = useMemo(() => {
+    if (!snapshot) {
+      return [];
     }
-  };
 
-  const getGoalProgress = (goal: StudyGoal) => {
-    if (goal.type === 'daily' && goal.category === 'study') {
-      return (stats.todayStudied / goal.target) * 100;
-    } else if (goal.type === 'weekly' && goal.category === 'study') {
-      return (stats.weekStudied / goal.target) * 100;
-    } else if (goal.category === 'review') {
-      const reviewed = goal.type === 'daily' ? stats.todayStudied : stats.weekStudied;
-      return (reviewed / goal.target) * 100;
+    const filtered = snapshot.challenges.filter((challenge) => {
+      if (challenge.period === "daily") {
+        return challenge.dateKey === todayKey;
+      }
+      return challenge.dateKey === currentWeekKey;
+    });
+
+    return filtered
+      .map((challenge) => {
+        const progressPct = Math.min(100, Math.round((challenge.progress / challenge.target) * 100));
+        return {
+          ...challenge,
+          progressPct,
+          template: challengeDefinitions.get(challenge.challengeId),
+        };
+      })
+      .sort((a, b) => (b.progressPct ?? 0) - (a.progressPct ?? 0));
+  }, [snapshot, challengeDefinitions, currentWeekKey, todayKey]);
+
+  if (loading) {
+    return <LoadingState />;
+  }
+
+  if (!snapshot) {
+    if (error) {
+      return <ErrorState message={error} onRetry={refresh} />;
     }
-    return 0;
-  };
+    return null;
+  }
 
-  const getProgressColor = (progress: number) => {
-    if (progress >= 100) return 'bg-green-500';
-    if (progress >= 70) return 'bg-yellow-500';
-    if (progress >= 40) return 'bg-orange-500';
-    return 'bg-red-500';
-  };
+  const { totals, dailyMetrics, accuracyTrend, streak, recommendations } = snapshot;
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">학습 대시보드</h2>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Learning Dashboard</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Track your momentum, celebrate milestones, and follow the next best actions suggested by StudyMate AI.
+        </p>
+      </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-300 dark:border-gray-700">
-          <p className="text-sm text-gray-600 dark:text-gray-400">전체 카드</p>
-          <p className="text-2xl font-bold text-indigo-600">{stats.totalItems}</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Cards</p>
+          <p className="text-2xl font-bold text-indigo-600">{totals.totalItems}</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-300 dark:border-gray-700">
-          <p className="text-sm text-gray-600 dark:text-gray-400">정답률</p>
-          <p className="text-2xl font-bold text-green-600">{stats.correctRate}%</p>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Accuracy</p>
+          <p className="text-2xl font-bold text-emerald-600">{totals.correctRate}%</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-300 dark:border-gray-700">
-          <p className="text-sm text-gray-600 dark:text-gray-400">오늘 학습</p>
-          <p className="text-2xl font-bold text-blue-600">{stats.todayStudied}</p>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Today Reviewed</p>
+          <p className="text-2xl font-bold text-blue-600">{totals.todayStudied}</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-300 dark:border-gray-700">
-          <p className="text-sm text-gray-600 dark:text-gray-400">복습 대기</p>
-          <p className="text-2xl font-bold text-orange-600">{stats.dueForReview}</p>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Due for Review</p>
+          <p className="text-2xl font-bold text-orange-500">{totals.dueForReview}</p>
         </div>
       </div>
 
-      {/* Study Goals */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-300 dark:border-gray-700">
-        <h3 className="text-md font-medium text-gray-600 dark:text-gray-400 mb-3">학습 목표</h3>
-        
-        {/* Add New Goal */}
-        <div className="flex gap-2 mb-4">
-          <select
-            value={newGoal.type}
-            onChange={(e) => setNewGoal({...newGoal, type: e.target.value as 'daily' | 'weekly'})}
-            className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
-          >
-            <option value="daily">일일</option>
-            <option value="weekly">주간</option>
-          </select>
-          <select
-            value={newGoal.category}
-            onChange={(e) => setNewGoal({...newGoal, category: e.target.value as 'study' | 'review'})}
-            className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
-          >
-            <option value="study">학습</option>
-            <option value="review">복습</option>
-          </select>
-          <input
-            type="number"
-            value={newGoal.target}
-            onChange={(e) => setNewGoal({...newGoal, target: parseInt(e.target.value)})}
-            className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white w-20"
-            min="1"
-          />
-          <button
-            onClick={handleAddGoal}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors"
-          >
-            추가
-          </button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-md font-semibold text-gray-700 dark:text-gray-200">Daily Study Momentum</h3>
+            <span className="text-xs text-gray-500">Last {dailyMetrics.length} days</span>
+          </div>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dailyMetrics}>
+                <defs>
+                  <linearGradient id="studied" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="date" tickFormatter={formatShortDate} stroke="#9ca3af" fontSize={12} />
+                <YAxis stroke="#9ca3af" fontSize={12} allowDecimals={false} />
+                <Tooltip
+                  cursor={{ strokeDasharray: "3 3" }}
+                  contentStyle={{ background: "#1f2937", borderRadius: 8, border: "none", color: "#f9fafb" }}
+                  formatter={(value: number) => [`${value} cards`, "Reviewed"]}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Area type="monotone" dataKey="studied" stroke="#4f46e5" fill="url(#studied)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        {/* Goals List */}
-        {goals.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">설정된 목표가 없습니다.</p>
-        ) : (
-          <div className="space-y-3">
-            {goals.map(goal => {
-              const progress = Math.min(100, Math.round(getGoalProgress(goal)));
-              const current = goal.type === 'daily' 
-                ? (goal.category === 'study' ? stats.todayStudied : stats.todayStudied)
-                : (goal.category === 'study' ? stats.weekStudied : stats.weekStudied);
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <h3 className="text-md font-semibold text-gray-700 dark:text-gray-200 mb-3">Accuracy Trend</h3>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={accuracyTrend}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="date" tickFormatter={formatShortDate} stroke="#9ca3af" fontSize={12} />
+                <YAxis domain={[0, 100]} stroke="#9ca3af" fontSize={12} />
+                <Tooltip
+                  contentStyle={{ background: "#1f2937", borderRadius: 8, border: "none", color: "#f9fafb" }}
+                  formatter={(value: number) => [`${value}%`, "Accuracy"]}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Bar dataKey="accuracy" fill="#34d399" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
 
-              return (
-                <div key={goal.id} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {goal.type === 'daily' ? '일일' : '주간'} {goal.category === 'study' ? '학습' : '복습'} 목표
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <h3 className="text-md font-semibold text-gray-700 dark:text-gray-200 mb-2">Streak Tracker</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+            Keep your momentum. Protect your current streak or push for a new personal best.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-md">
+              <p className="text-xs text-indigo-600 dark:text-indigo-300">Current streak</p>
+              <p className="text-xl font-semibold text-indigo-700 dark:text-indigo-200">{streak.current} days</p>
+            </div>
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 rounded-md">
+              <p className="text-xs text-emerald-600 dark:text-emerald-300">Best streak</p>
+              <p className="text-xl font-semibold text-emerald-700 dark:text-emerald-200">{streak.longest} days</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <h3 className="text-md font-semibold text-gray-700 dark:text-gray-200 mb-3">Achievement Badges</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {badgeCards.map(({ definition, isUnlocked, unlocked, progressSnapshot }) => (
+              <div
+                key={definition.id}
+                className={`rounded-md border p-3 text-sm ${
+                  isUnlocked
+                    ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30"
+                    : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
+                }`}
+              >
+                <p className="text-xs font-semibold text-gray-600 dark:text-gray-400">{definition.title}</p>
+                <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{definition.description}</p>
+                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  {isUnlocked ? (
+                    <span>Unlocked {new Date(unlocked?.unlockedAt ?? "").toLocaleDateString()}</span>
+                  ) : (
+                    <span>Target: {definition.threshold}</span>
+                  )}
+                </div>
+                {progressSnapshot !== undefined && (
+                  <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-300">
+                    Snapshot: {progressSnapshot}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-md font-semibold text-gray-700 dark:text-gray-200">Active Challenges</h3>
+            <span className="text-xs text-gray-400">Daily & Weekly</span>
+          </div>
+          {activeChallenges.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Fresh challenges will appear after your next study session.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {activeChallenges.map((challenge) => (
+                <div key={challenge.id} className="border border-gray-200 dark:border-gray-700 rounded-md p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                        {challenge.template?.title ?? challenge.challengeId}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {challenge.template?.description ?? "Stay focused and keep progressing."}
+                      </p>
+                    </div>
+                    <span className="text-xs text-indigo-500 uppercase">
+                      {challenge.period === "daily" ? "Daily" : "Weekly"}
                     </span>
-                    <button
-                      onClick={() => handleDeleteGoal(goal.id)}
-                      className="text-red-500 hover:text-red-600 text-sm"
-                    >
-                      삭제
-                    </button>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all ${getProgressColor(progress)}`}
-                        style={{ width: `${progress}%` }}
+                  <div className="mt-3">
+                    <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-2 ${challenge.progressPct >= 100 ? "bg-emerald-500" : "bg-indigo-500"}`}
+                        style={{ width: `${challenge.progressPct}%` }}
                       />
                     </div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                      {current}/{goal.target} ({progress}%)
-                    </span>
+                    <div className="mt-1 flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                      <span>
+                        {challenge.progress}/{challenge.target}
+                      </span>
+                      {challenge.completedAt && <span>Completed</span>}
+                    </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-      {/* Weekly Chart (Simple Text-based) */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-300 dark:border-gray-700">
-        <h3 className="text-md font-medium text-gray-600 dark:text-gray-400 mb-3">주간 학습 요약</h3>
-        <div className="text-center">
-          <p className="text-3xl font-bold text-indigo-600">{stats.weekStudied}</p>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">최근 7일간 학습한 카드</p>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <h3 className="text-md font-semibold text-gray-700 dark:text-gray-200 mb-3">Recommended Focus</h3>
+          {recommendations.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              You are fully on track. Consider exploring new concepts.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {recommendations.map((recommendation) => (
+                <div key={recommendation.id} className="border border-gray-200 dark:border-gray-700 rounded-md p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{recommendation.title}</p>
+                    <span
+                      className={`text-xs font-semibold ${
+                        recommendation.urgency === "overdue"
+                          ? "text-red-500"
+                          : recommendation.urgency === "today"
+                            ? "text-orange-500"
+                            : "text-emerald-500"
+                      }`}
+                    >
+                      {recommendation.urgency.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{recommendation.description}</p>
+                  <div className="mt-2 text-xs text-gray-400">
+                    {recommendation.itemCount > 0 && (
+                      <span>{recommendation.itemCount} cards affected</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
